@@ -1,0 +1,144 @@
+<!-- Industry -->
+								<div class="col-md-6 col-lg-4">
+									<label class="h6 fw-normal mb-0"><i class="fa-solid fa-layer-group text-primary me-1"></i>Industry</label>
+									<!-- Input field -->
+									<div class="form-border-bottom form-control-transparent form-fs-lg mt-2">
+										<select class="form-select js-choice" id="ddlLinkedinIndustryList" data-search-enabled="true">
+											<option value="">Select Industry</option>
+										</select>
+									</div>
+								</div>
+
+@section Scripts{
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/choices.js/public/assets/styles/choices.min.css" />
+<script src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js"></script>
+    <script type="text/javascript">
+        $(document).ready(function() {
+
+           //any other code you have
+            // --- LINKEDIN INDUSTRY START ---
+
+            let linkedinIndustryChoices; // To hold the Choices.js instance
+
+            // Function to fetch industries and initialize/update Choices.js
+            function loadLinkedinIndustries() {
+                $.ajax({
+                    url: '/api/Industry', // Your API endpoint
+                    method: 'GET',
+                    success: function(data) {
+                        // Prepare data for Choices.js
+                        // Choices.js expects { value: 'ID', label: 'Display Text', customProperties: { ... } }
+                        const choicesData = data.map(item => {
+                            // The backend already provides 'Text' as the indented display name,
+                            // and 'FullHierarchy' as the string to search against.
+                            return {
+                                value: item.Value,
+                                label: item.Text, // Display indented name
+                                customProperties: { // Store other properties for later use (e.g., description)
+                                    fullHierarchy: item.FullHierarchy,
+                                    description: item.Description
+                                }
+                            };
+                        });
+
+                        // Add the initial "Select an Industry" option if not provided by backend as value -1
+                        // It's good practice for Choices.js to have a dedicated placeholder/default option.
+                        const selectAnIndustryOption = {
+                            value: '', // An empty value for the "Select an Industry" option
+                            label: 'Select Industry', // Text for the placeholder
+                            selected: true, // Make it pre-selected
+                            disabled: true, // Make it unselectable if desired
+                            customProperties: {
+                                fullHierarchy: '',
+                                description: 'Please select an industry from the list.'
+                            }
+                        };
+                        
+                        // Filter out the backend's -1 placeholder if it exists and add our custom one
+                        const filteredChoicesData = choicesData.filter(item => item.value !== -1);
+                        filteredChoicesData.unshift(selectAnIndustryOption);
+
+
+                        // Initialize Choices.js or set choices if already initialized
+                        if (!linkedinIndustryChoices) {
+                            linkedinIndustryChoices = new Choices('#ddlLinkedinIndustryList', {
+                                searchEnabled: true, // As per your HTML data-search-enabled="true"
+                                itemSelectText: '', // No text needed when selecting
+                                // Custom search filter to search against the fullHierarchy
+                                searchFilter: function(option, searchTerms) {
+                                    if (searchTerms.length === 0) return true; // Show all if no search terms
+
+                                    const optionLabel = option.label ? String(option.label) : '';
+                                    const customFullHierarchy = option.customProperties && option.customProperties.fullHierarchy ? String(option.customProperties.fullHierarchy) : '';
+                                    const customDescription = option.customProperties && option.customProperties.description ? String(option.customProperties.description) : '';
+
+                                    // Search in label (indented display), full hierarchy, and description
+                                    return (optionLabel.toLowerCase().includes(searchTerms.toLowerCase()) ||
+                                            customFullHierarchy.toLowerCase().includes(searchTerms.toLowerCase()) ||
+                                            customDescription.toLowerCase().includes(searchTerms.toLowerCase()));
+                                }
+                            });
+                            linkedinIndustryChoices.setChoices(filteredChoicesData, 'value', 'label', true); // Pass data
+                        } else {
+                            linkedinIndustryChoices.setChoices(filteredChoicesData, 'value', 'label', true); // Update data
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        console.error("Error fetching LinkedIn industries:", error);
+                        // Provide a fallback if data loading fails
+                        const errorOption = [{
+                            value: '',
+                            label: 'Error loading industries',
+                            selected: true,
+                            disabled: true,
+                            customProperties: {
+                                fullHierarchy: '',
+                                description: 'Failed to load industry data from the server.'
+                            }
+                        }];
+                        if (!linkedinIndustryChoices) {
+                             linkedinIndustryChoices = new Choices('#ddlLinkedinIndustryList', { searchEnabled: false, itemSelectText: '' });
+                        }
+                        linkedinIndustryChoices.setChoices(errorOption, 'value', 'label', true);
+                    }
+                });
+            }
+
+            // Handle selection change on the Choices.js instance
+            $('#ddlLinkedinIndustryList').on('change', function() {
+                const selectedValue = this.value; // The value of the selected option
+                let selectedOptionData = null;
+
+                // Find the full data for the selected option using Choices.js API
+                if (linkedinIndustryChoices) {
+                    const selectedItem = linkedinIndustryChoices.getValue(true); // Get selected item as object
+                    if (selectedItem && selectedItem.customProperties) {
+                        selectedOptionData = selectedItem.customProperties;
+                    } else if (selectedItem && selectedItem.value == selectedValue) { // For the initial 'Select Industry' placeholder
+                        // Special handling for the placeholder if its not a full object.
+                        // In this case, its customProperties might be null or undefined.
+                        // We rely on its default message directly.
+                        selectedOptionData = { description: 'Please select an industry from the list.' };
+                    }
+                }
+                
+                const $descriptionDisplay = $('#industryDescriptionDisplay');
+                const $descriptionText = $('#descriptionText');
+                const $selectionFeedback = $('#selectionFeedback');
+
+                if (selectedValue !== '') { // If a valid industry is selected (not the empty placeholder)
+                    $descriptionText.text(selectedOptionData ? selectedOptionData.description : 'Description not available.');
+                    $descriptionDisplay.slideDown();
+                    $selectionFeedback.hide(); // Hide general feedback if showing description
+                } else {
+                    $descriptionDisplay.slideUp(); // Hide description for placeholder
+                }
+            });
+
+            // --- LINKEDIN INDUSTRY END ---
+
+            // --- INITIAL LOAD ---
+            loadLinkedinIndustries(); // New: Load LinkedIn industries when the page is ready
+        });
+    </script>
+}
